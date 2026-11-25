@@ -1,0 +1,427 @@
+{
+ "fig6": {
+  "mean_latency_ms": {
+   "full": [
+    12.866894609760493,
+    30.034673500340432,
+    117.61559905833565,
+    73.27152116806246
+   ],
+   "alpha0": [
+    13.79649651935324,
+    34.75744678056799,
+    126.30621379590592,
+    78.9805276854895
+   ],
+   "static": [
+    14.38086849055253,
+    35.894441350828856,
+    136.64958179346286,
+    84.23600641661324
+   ],
+   "rr": [
+    15.70658963988535,
+    38.971771450014785,
+    139.87998545519076,
+    92.09221659926698
+   ],
+   "nocache": [
+    20.492806107504293,
+    46.197746528778225,
+    147.46416419046,
+    95.37671123398468
+   ]
+  },
+  "increase_vs_full_pct": {
+   "alpha0": [
+    7.224757315472031,
+    15.724403596976094,
+    7.388998404250658,
+    7.791576353836475
+   ],
+   "static": [
+    11.766427927711286,
+    19.510010156834255,
+    16.18321284550583,
+    14.964184001860145
+   ],
+   "rr": [
+    22.069777644488806,
+    29.75593508473816,
+    18.929790414800593,
+    25.686235431137828
+   ],
+   "nocache": [
+    59.2676922367809,
+    53.814711947025465,
+    25.37806666046048,
+    30.168870133349177
+   ]
+  },
+  "alpha0_cache_formation": null,
+  "paper_increase_pct": {
+   "alpha0": [
+    3.9,
+    6.2
+   ],
+   "static": [
+    9.5,
+    16.8
+   ],
+   "rr": [
+    14.8,
+    27.6
+   ],
+   "nocache": [
+    24.8,
+    48.9
+   ]
+  }
+ },
+ "fig7_dispatch_share_pct": {
+  "full/W1": {
+   "nx": 100.0,
+   "pi5": 0.0,
+   "agx": 0.0
+  },
+  "full/W2": {
+   "nx": 80.0,
+   "pi5": 0.0,
+   "agx": 20.0
+  },
+  "full/W3": {
+   "nx": 77.0,
+   "pi5": 0.0,
+   "agx": 23.0
+  },
+  "full/W4": {
+   "nx": 47.0,
+   "pi5": 0.0,
+   "agx": 53.0
+  },
+  "alpha0/W1": {
+   "nx": 100.0,
+   "pi5": 0.0,
+   "agx": 0.0
+  },
+  "alpha0/W2": {
+   "nx": 80.0,
+   "pi5": 20.0,
+   "agx": 0.0
+  },
+  "alpha0/W3": {
+   "nx": 64.66666666666667,
+   "pi5": 14.0,
+   "agx": 21.333333333333332
+  },
+  "alpha0/W4": {
+   "nx": 59.9,
+   "pi5": 40.1,
+   "agx": 0.0
+  },
+  "static/W1": {
+   "nx": 33.25,
+   "pi5": 4.25,
+   "agx": 62.5
+  },
+  "static/W2": {
+   "nx": 26.8,
+   "pi5": 3.4,
+   "agx": 69.8
+  },
+  "static/W3": {
+   "nx": 44.5,
+   "pi5": 5.5,
+   "agx": 50.0
+  },
+  "static/W4": {
+   "nx": 40.0,
+   "pi5": 5.0,
+   "agx": 55.0
+  },
+  "rr/W1": {
+   "nx": 67.0,
+   "pi5": 16.5,
+   "agx": 16.5
+  },
+  "rr/W2": {
+   "nx": 66.0,
+   "pi5": 17.0,
+   "agx": 17.0
+  },
+  "rr/W3": {
+   "nx": 66.0,
+   "pi5": 17.0,
+   "agx": 17.0
+  },
+  "rr/W4": {
+   "nx": 67.0,
+   "pi5": 16.5,
+   "agx": 16.5
+  },
+  "nocache/W1": {
+   "nx": 33.25,
+   "pi5": 4.25,
+   "agx": 62.5
+  },
+  "nocache/W2": {
+   "nx": 26.6,
+   "pi5": 3.4,
+   "agx": 70.0
+  },
+  "nocache/W3": {
+   "nx": 44.5,
+   "pi5": 5.5,
+   "agx": 50.0
+  },
+  "nocache/W4": {
+   "nx": 40.0,
+   "pi5": 5.0,
+   "agx": 55.0
+  }
+ },
+ "fig8": "not run",
+ "fig9": "not run",
+ "fig10": {
+  "mean_latency_ms": {
+   "hedices": [
+    12.866894609760493,
+    30.034673500340432,
+    117.61559905833565,
+    73.27152116806246
+   ],
+   "ray": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "dask": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "kubeedge": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "knative": [
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  "normalized": {
+   "hedices": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "ray": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "dask": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "kubeedge": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "knative": [
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  "avg_reduction_pct": {},
+  "not_run": [
+   "ray",
+   "dask",
+   "kubeedge",
+   "knative"
+  ],
+  "paper_norm": {
+   "ray": [
+    1.41,
+    1.55
+   ],
+   "dask": [
+    1.58,
+    1.77
+   ],
+   "kubeedge": [
+    1.53,
+    1.71
+   ],
+   "knative": [
+    1.67,
+    1.88
+   ]
+  },
+  "paper_avg_reduction_pct": {
+   "ray": 31.9,
+   "dask": 39.9,
+   "kubeedge": 38.1,
+   "knative": 43.3
+  }
+ },
+ "fig11_hedices_breakdown_ms": {
+  "W1": {
+   "Pack": 1.458063212921843,
+   "Parse": 0.15164559124968946,
+   "Transfer": 0.2264531319639325,
+   "Control": 2.5890813963809367,
+   "Execute": 7.18838905217126
+  },
+  "W2": {
+   "Pack": 2.138113061664626,
+   "Parse": 0.20873121917247772,
+   "Transfer": 0.3911299573571652,
+   "Control": 5.014907941144216,
+   "Execute": 20.677824215963483
+  },
+  "W3": {
+   "Pack": 1.5157805976923555,
+   "Parse": 0.2757745236158371,
+   "Transfer": 1.1822926264490776,
+   "Control": 5.143981802998871,
+   "Execute": 107.74845492094755
+  },
+  "W4": {
+   "Pack": 2.0470988389570266,
+   "Parse": 0.4334033408667892,
+   "Transfer": 2.3128432078063774,
+   "Control": 9.823351671615587,
+   "Execute": 62.18716868082993
+  }
+ },
+ "fig11_baseline_breakdown_ms": {},
+ "fig11_note": "Per-component breakdown is instrumented in Hedices only; Ray/Dask internals are not instrumented, so only their end-to-end totals are reported.",
+ "table3": {
+  "measured": {
+   "hedices": {
+    "W1": {
+     "wire_kb_per_instance": 7.821258354462473,
+     "deploy_path_kb_per_instance": 1.1640625
+    },
+    "W2": {
+     "wire_kb_per_instance": 53.18275245157966,
+     "deploy_path_kb_per_instance": 1.981923828125
+    },
+    "W3": {
+     "wire_kb_per_instance": 72.43091898626399,
+     "deploy_path_kb_per_instance": 1.15296875
+    },
+    "W4": {
+     "wire_kb_per_instance": 106.64372667941043,
+     "deploy_path_kb_per_instance": 1.8431787109375
+    }
+   },
+   "ray": {
+    "W1": {
+     "wire_kb_per_instance": null
+    },
+    "W2": {
+     "wire_kb_per_instance": null
+    },
+    "W3": {
+     "wire_kb_per_instance": null
+    },
+    "W4": {
+     "wire_kb_per_instance": null
+    }
+   },
+   "dask": {
+    "W1": {
+     "wire_kb_per_instance": null
+    },
+    "W2": {
+     "wire_kb_per_instance": null
+    },
+    "W3": {
+     "wire_kb_per_instance": null
+    },
+    "W4": {
+     "wire_kb_per_instance": null
+    }
+   },
+   "kubeedge": {
+    "W1": {
+     "wire_kb_per_instance": null
+    },
+    "W2": {
+     "wire_kb_per_instance": null
+    },
+    "W3": {
+     "wire_kb_per_instance": null
+    },
+    "W4": {
+     "wire_kb_per_instance": null
+    }
+   },
+   "knative": {
+    "W1": {
+     "wire_kb_per_instance": null
+    },
+    "W2": {
+     "wire_kb_per_instance": null
+    },
+    "W3": {
+     "wire_kb_per_instance": null
+    },
+    "W4": {
+     "wire_kb_per_instance": null
+    }
+   }
+  },
+  "paper_kb": {
+   "hedices": [
+    12.4,
+    18.3,
+    24.1,
+    19.1
+   ],
+   "ray": [
+    27.8,
+    36.7,
+    42.3,
+    35.8
+   ],
+   "dask": [
+    33.1,
+    42.8,
+    49.0,
+    41.7
+   ],
+   "kubeedge": [
+    39.2,
+    47.1,
+    52.8,
+    45.9
+   ],
+   "knative": [
+    31.0,
+    40.9,
+    47.6,
+    38.8
+   ]
+  },
+  "note": "wire = all bytes sent by all nodes in the measurement window / instances (includes input/output data); deploy_path = Hedices function packages + references + stage metadata, excluding inputs."
+ },
+ "fig12": "not run",
+ "fig13": "not run"
+}

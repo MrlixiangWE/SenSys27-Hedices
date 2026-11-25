@@ -1,0 +1,6 @@
+# worker hosts of testbed/topology_phys6r_*.json (the master, orin0 = 192.168.3.4, is the local host)
+lixiang@192.168.3.5
+orin@192.168.3.6
+orin@192.168.3.7
+orin@192.168.3.9
+leexiangdanaer@192.168.3.116

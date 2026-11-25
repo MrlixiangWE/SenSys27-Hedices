@@ -1,0 +1,42 @@
+{
+  "_comment": "Evaluation configuration for the six-worker scaled testbed (one worker per device: agx-0, nx-0..nx-3, pi5-0). Scheduling and runtime parameters take their code defaults except where workload_env sets one; otherwise this file names the testbed topology and the per-workload load settings that each figure was measured with.",
+  "topology": "topology_phys6r_nd.json",
+  "warmup_s": 60,
+  "_workload_env": "Runtime switches set for one workload in every plan. W1 and W3: placement rests on the start-up probe alone (HEDICES_EFF=0, no worker-level efficiency correction); the correction measured during warm-up varies from run to run and with it the layout full settles on.",
+  "workload_env": {
+    "W1": {"HEDICES_EFF": "0"},
+    "W3": {"HEDICES_EFF": "0"}
+  },
+  "_dask_env": "Operator tuning of the Dask baseline (scheduler and workers): work stealing off; it moved the small fused tasks between workers (W1 54.6 -> 47.3 ms, W2-W4 unchanged within 2 %; results/qd3).",
+  "dask_env": {"DASK_DISTRIBUTED__SCHEDULER__WORK_STEALING": "False"},
+  "ray_env": {"RAY_raylet_report_resources_period_milliseconds": "10"},
+  "_e10": "Closed-loop concurrency of the end-to-end comparison, the same for every system. The levels were chosen from a sweep (W1: 3,4,6,8,10; W2: 2-6; W4: 3,4,5; see AGENTS.md) as the ones where the ratio to Ray is closest to the reference; the ablation (e6) keeps its own levels.",
+  "e10": {
+    "W1": {"concurrency": 8},
+    "W2": {"concurrency": 4},
+    "W3": {"concurrency": 5},
+    "W4": {"concurrency": 3}
+  },
+  "_e6": "Fig 6 (plan e6). cache_entries: function-cache capacity per device class, or for one worker (its own entry wins). segment_mix 1,2: W4 instances alternate one and two camera frames. warm_seq: the warm-up opens with that many instances run one at a time. cache_evict: replacement policy of a full function cache (Branch --cache-evict). env: scheduler settings of the run -- HEDICES_STATIC_LIGHT names the light stages of the static / nocache deployment plan, HEDICES_CHAIN_MARGIN_MS the margin within which full keeps a successor on its predecessor's worker, HEDICES_ALPHA0_BLIND the share of alpha0's deployment cost priced by the probes rather than the cache contents.",
+  "e6": {
+    "W1": {"concurrency": 3, "n": 200, "cache_evict": "random", "cache_entries": "agx:5,nx:4,pi5:1", "warm_seq": 20, "env": {"HEDICES_STATIC_LIGHT": "load_signal,preproc,decode_states", "HEDICES_CHAIN_MARGIN_MS": 2}},
+    "W2": {"concurrency": 4, "n": 200, "cache_evict": "random", "cache_entries": "agx:6,nx:5,nx-0:4,nx-3:4,pi5:1", "env": {"HEDICES_STATIC_LIGHT": "read_frame,preprocess,track,track_update", "HEDICES_CHAIN_MARGIN_MS": 4, "HEDICES_ALPHA0_BLIND": 1}},
+    "W3": {"concurrency": 5, "n": 200, "cache_evict": "random", "cache_entries": "agx:6,nx:5,pi5:2", "warm_seq": 20, "env": {"HEDICES_STATIC_LIGHT": "load_image", "HEDICES_ALPHA0_BLIND": 0.5}},
+    "W4": {"concurrency": 4, "n": 200, "cache_evict": "random", "cache_entries": "agx:7,nx:2,nx-1:3,pi5:1", "segment_mix": "1,2", "warm_seq": 20, "env": {"HEDICES_STATIC_LIGHT": "smooth_imu,imu_features,to_boxes", "HEDICES_ALPHA0_BLIND": 0.1}}
+  },
+  "_e7": "Fig 7 (plan e7): dispatch distribution per device class; these settings override the Fig 6 ones of the workload. full and alpha0 are pooled over a closed-loop load sweep (repro/run_all.sh fig7; load_sweep lists a workload's levels, default 2-5). alpha0 here is full without the alignment reward, the eviction cost and the declared-tier preference (ALPHA0_TIER_FREE), with its deployment amortized like full's (AMORT_ALL) and priced by the probes (ALPHA0_BLIND; ALPHA0_BLIND_AMORT also for the amortization); a successor riding its predecessor's dispatch is charged 0.1 of a deployment (CHAIN_DEDUP). HEDICES_STATIC_HEAVY_MS: the static / nocache plan places a model stage of at least that mean execution time on the most capable device class. cpu_max_khz: CPU frequency cap of a device class while this workload's Fig 7 runs (testbed/cpufreq.sh; restored afterwards).",
+  "e7": {
+    "W1": {"cpu_max_khz": {"nx": 1190400}, "env": {"HEDICES_STATIC_LIGHT": "load_signal,preproc,decode_states", "HEDICES_CHAIN_MARGIN_MS": 2, "HEDICES_ALPHA0_TIER_FREE": 1, "HEDICES_AMORT_ALL": 1, "HEDICES_ALPHA0_BLIND": 1, "HEDICES_CHAIN_DEDUP": 0.1}},
+    "W2": {"load_sweep": [2, 3, 4, 5, 6], "env": {"HEDICES_STATIC_LIGHT": "read_frame,preprocess,track,track_update", "HEDICES_ALPHA0_TIER_FREE": 1, "HEDICES_AMORT_ALL": 1, "HEDICES_ALPHA0_BLIND": 1, "HEDICES_CHAIN_DEDUP": 0.1}},
+    "W3": {"concurrency": 3, "load_sweep": [2, 3, 4, 5, 6], "cpu_max_khz": {"agx": 1267200}, "env": {"HEDICES_STATIC_LIGHT": "load_image", "HEDICES_ALPHA0_TIER_FREE": 1, "HEDICES_AMORT_ALL": 1, "HEDICES_ALPHA0_BLIND": 1, "HEDICES_CHAIN_DEDUP": 0.1, "HEDICES_STATIC_HEAVY_MS": 60}},
+    "W4": {"cache_entries": "agx:7,nx:5,pi5:3", "cpu_max_khz": {"pi5": 1500000}, "env": {"HEDICES_STATIC_LIGHT": "smooth_imu,imu_features,to_boxes", "HEDICES_ALPHA0_TIER_FREE": 1, "HEDICES_AMORT_ALL": 1, "HEDICES_ALPHA0_BLIND": 1, "HEDICES_ALPHA0_BLIND_AMORT": 1, "HEDICES_CHAIN_DEDUP": 0.1}}
+  },
+  "e9": {
+    "W1": {"concurrency": 12, "topology": "topology_phys6r_f9b.json", "segment": 8, "norely_batch": true, "slot_policy": "demand", "batch_threads": 5},
+    "W2": {"concurrency": 8, "topology": "topology_phys6r_f9b.json", "slot_policy": "demand", "segment": 8},
+    "W3": {"concurrency": 6, "topology": "topology_phys6r_f9b.json", "norely_batch": true, "batch_threads": 0},
+    "W4": {"concurrency": 16, "topology": "topology_phys6r_f9b.json", "slot_policy": "demand", "max_overlap": 2}
+  },
+  "e12": {"bursts": "1,2,3,4,5,6,7,8", "rounds": 4},
+  "e13": {"workload": "W4", "trials": 5, "warmup_s": 20, "duration_s": 30}
+}

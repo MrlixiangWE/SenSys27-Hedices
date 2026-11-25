@@ -1,0 +1,15 @@
+{
+  "_comment": "Scaled-down emulation used for the measurements: 1 AGX (cloud tier), 2 NX + 2 Pi5 (edge tier), master on the edge tier. cpu_quota is real CPU (cores) of the 4-core Pi; slots is the parallel execution width of a worker; mem_mb is the device memory reported to schedulers; mem_max_mb is the cgroup cap.",
+  "bridge": "hedbr0",
+  "bridge_ip": "10.77.0.1/16",
+  "tiers": {"cloud": "10.77.1.0/24", "edge": "10.77.2.0/24"},
+  "cross_tier": {"rate": "100mbit", "delay": "2ms"},
+  "master": {"name": "master", "ip": "10.77.2.10", "tier": "edge", "cpu_quota": 0.4, "mem_mb": 16384, "mem_max_mb": 1800},
+  "workers": [
+    {"name": "agx-0", "ip": "10.77.1.11", "tier": "cloud", "class": "agx", "cpu_quota": 1.0,  "slots": 2, "mem_mb": 32768, "mem_max_mb": 1800},
+    {"name": "nx-0",  "ip": "10.77.2.21", "tier": "edge",  "class": "nx",  "cpu_quota": 0.6,  "slots": 2, "mem_mb": 16384, "mem_max_mb": 1400},
+    {"name": "nx-1",  "ip": "10.77.2.22", "tier": "edge",  "class": "nx",  "cpu_quota": 0.6,  "slots": 2, "mem_mb": 16384, "mem_max_mb": 1400},
+    {"name": "pi5-0", "ip": "10.77.2.31", "tier": "edge",  "class": "pi5", "cpu_quota": 0.25, "slots": 2, "mem_mb": 8192,  "mem_max_mb": 1200},
+    {"name": "pi5-1", "ip": "10.77.2.32", "tier": "edge",  "class": "pi5", "cpu_quota": 0.25, "slots": 2, "mem_mb": 8192,  "mem_max_mb": 1200}
+  ]
+}

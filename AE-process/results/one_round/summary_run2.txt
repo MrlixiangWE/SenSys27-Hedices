@@ -1,0 +1,132 @@
+results: results/repro8
+
+== Fig 6: mean latency increase over full, % (rounds: 1; paper in brackets)
+              full (ms)             α=0          static              RR         nocache
+   W1              12.7       +4.6 (+4)     +13.9 (+10)     +22.3 (+24)     +60.6 (+47)
+   W2              30.3      +14.8 (+7)     +18.9 (+18)     +27.8 (+26)     +51.0 (+47)
+   W3             117.1       +5.6 (+6)     +14.6 (+12)     +18.5 (+14)     +27.5 (+26)
+   W4              72.9      +11.0 (+6)     +16.5 (+12)     +25.5 (+19)     +29.3 (+32)
+
+== Fig 7: share of edge-stage dispatches on the AGX, % -- the AGX column of each panel (paper in brackets)
+   full and α=0 pooled over the load sweep, concurrency 2–6
+                  full            α=0         static             RR        nocache
+   W1      6.25 (6.33)  17.19 (19.08)  62.50 (61.31)  17.00 (20.86)  62.50 (66.88)
+   W2      8.92 (8.77)  25.58 (11.56)  70.00 (60.16)  16.50 (21.80)  69.80 (64.02)
+   W3      5.27 (9.27)  20.70 (11.84)  75.00 (72.22)  16.50 (19.69)  75.00 (76.61)
+   W4      5.88 (6.34)   9.65 (11.35)  55.00 (55.23)  16.50 (22.35)  55.10 (64.74)
+
+== Fig 8: cache instability σ(t) and alignment weight α(t) over the dispatches (cold start)
+                  cultivation         decay  exploitation
+   dispatches           0–117       117–269       269–862
+
+                     σ(t)      α(t)
+   peak              1.51      0.50
+   last 50           0.00      0.00
+   raw max           1.83      0.50
+   curves: moving average over 35 dispatches, as plotted
+
+== Fig 9: end-to-end latency without / with @NoRely, and the reduction (paper in brackets)
+               @NoRely off         @NoRely on          reduction
+   W1              54.1 ms            40.3 ms    25.4 % (16.4 %)
+   W2             311.9 ms           261.0 ms    16.3 % (16.9 %)
+   W3             245.4 ms           198.0 ms    19.3 % (18.1 %)
+   W4             176.4 ms           137.3 ms    22.2 % (13.4 %)
+   mean over 5 groups measured both ways
+
+== Fig 10: end-to-end latency relative to Hedices, the bar labels (median of 1 round; paper in brackets)
+                Hedices             Ray            Dask        KubeEdge         Knative
+   W1   1.00× (23.2 ms)   2.53× (1.55×)   2.23× (1.77×)   1.77× (1.71×)   1.93× (1.88×)
+   W2   1.00× (31.3 ms)   1.78× (1.47×)   2.06× (1.69×)   1.84× (1.65×)   2.07× (1.79×)
+   W3  1.00× (122.3 ms)   1.74× (1.41×)   2.03× (1.58×)   1.70× (1.53×)   1.67× (1.67×)
+   W4   1.00× (48.6 ms)   1.55× (1.44×)   1.76× (1.62×)   1.60× (1.57×)   1.66× (1.71×)
+
+== Fig 11: latency breakdown, ms -- one block per panel, a row per bar
+   W1 Recognition   (Hedices Transfer 1.4 % of the bar; paper about 5 %)
+                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
+   Hedices         1.53      0.18      0.27     10.86      6.89         -      19.7
+   Ray                -         -         -         -      6.89     51.83      58.7
+   Dask               -         -         -         -      6.89     44.90      51.8
+   KubeEdge           -         -         -         -      6.89     34.26      41.2
+   Knative            -         -         -         -      6.89     37.83      44.7
+   W2 Tracking   (Hedices Transfer 1.4 % of the bar; paper about 5 %)
+                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
+   Hedices         1.97      0.21      0.41      6.24     20.86         -      29.7
+   Ray                -         -         -         -     20.86     34.69      55.5
+   Dask               -         -         -         -     20.86     43.62      64.5
+   KubeEdge           -         -         -         -     20.86     36.66      57.5
+   Knative            -         -         -         -     20.86     43.99      64.9
+   W3 Detection   (Hedices Transfer 1.0 % of the bar; paper about 5 %)
+                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
+   Hedices         1.49      0.27      1.16      4.22    113.42         -     120.6
+   Ray                -         -         -         -    113.42     99.22     212.6
+   Dask               -         -         -         -    113.42    134.43     247.9
+   KubeEdge           -         -         -         -    113.42     94.07     207.5
+   Knative            -         -         -         -    113.42     90.71     204.1
+   W4 Fusion   (Hedices Transfer 2.0 % of the bar; paper about 5 %)
+                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
+   Hedices         1.59      0.34      1.01      6.88     40.70         -      50.5
+   Ray                -         -         -         -     40.70     34.66      75.4
+   Dask               -         -         -         -     40.70     44.99      85.7
+   KubeEdge           -         -         -         -     40.70     37.28      78.0
+   Knative            -         -         -         -     40.70     39.90      80.6
+   Overhead: the baselines' latency beyond executing the same stage code (not instrumented per component)
+
+== Table 4: network traffic per instance in steady state, KB, and its ratio to Hedices (paper in brackets)
+   Dask: plus its application data counted at the stage boundaries (its fused tier tasks keep it off the wire)
+                         Hedices           Ray          Dask      KubeEdge       Knative
+   W1 Recognition     7.3 (12.4)   32.7 (27.8)   14.4 (33.1)   15.3 (39.2)   13.9 (31.0)
+   W2 Tracking       57.0 (18.3)  153.1 (36.7)  120.5 (42.8)  123.9 (47.1)  122.6 (40.9)
+   W3 Detection      71.5 (24.1)  253.7 (42.3)  230.3 (49.0)  237.2 (52.8)  231.1 (47.6)
+   W4 Fusion         90.3 (19.1)  176.9 (35.8)  175.9 (41.7)  138.7 (45.9)  138.3 (38.8)
+
+   ratio to Hedices (paper in brackets)
+                             Ray          Dask      KubeEdge       Knative
+   W1 Recognition    4.5× (2.2×)   2.0× (2.7×)   2.1× (3.2×)   1.9× (2.5×)
+   W2 Tracking       2.7× (2.0×)   2.1× (2.3×)   2.2× (2.6×)   2.2× (2.2×)
+   W3 Detection      3.5× (1.8×)   3.2× (2.0×)   3.3× (2.2×)   3.2× (2.0×)
+   W4 Fusion         2.0× (1.9×)   1.9× (2.2×)   1.5× (2.4×)   1.5× (2.0×)
+
+   framework traffic only, over a deployment session, KB (paper in brackets)
+                         Hedices           Ray          Dask      KubeEdge       Knative
+   W1 Recognition     2.7 (12.4)   28.7 (27.8)    7.8 (33.1)   13.7 (39.2)  114.3 (31.0)
+   W2 Tracking        3.7 (18.3)   55.2 (36.7)    7.7 (42.8)   17.4 (47.1)  122.2 (40.9)
+   W3 Detection       2.5 (24.1)   53.9 (42.3)    6.8 (49.0)   13.1 (52.8)  125.5 (47.6)
+   W4 Fusion          4.1 (19.1)   57.9 (35.8)    7.4 (41.7)   18.5 (45.9)  145.6 (38.8)
+
+== Fig 12: P95 latency at each burst size q, normalized by the largest P95 in the panel (the plotted points)
+   (a) W1 Recognition   (1.00 = 214 ms)
+                 q=1    q=2    q=3    q=4    q=5    q=6    q=7    q=8
+   Hedices      0.09   0.11   0.19   0.21   0.29   0.35   0.43   0.48
+   Ray          0.16   0.18   0.27   0.35   0.48   0.55   0.66   0.53
+   Dask         0.20   0.28   0.27   0.35   0.40   0.48   0.52   0.59
+   KubeEdge     0.17   0.25   0.34   0.45   0.54   0.67   0.83   0.83
+   Knative      0.19   0.34   0.46   0.47   0.61   0.71   0.98   1.00
+   (b) W2 Tracking   (1.00 = 310 ms)
+                 q=1    q=2    q=3    q=4    q=5    q=6    q=7    q=8
+   Hedices      0.18   0.09   0.20   0.20   0.25   0.27   0.32   0.40
+   Ray          0.25   0.32   0.44   0.42   0.39   0.50   0.53   0.50
+   Dask         0.33   0.34   0.37   0.48   0.47   0.62   0.63   0.71
+   KubeEdge     0.24   0.33   0.38   0.49   0.54   0.67   0.73   0.80
+   Knative      0.19   0.38   0.43   0.55   0.63   0.74   0.96   1.00
+   (c) W3 Detection   (1.00 = 774 ms)
+                 q=1    q=2    q=3    q=4    q=5    q=6    q=7    q=8
+   Hedices      0.18   0.26   0.20   0.22   0.23   0.28   0.31   0.34
+   Ray          0.25   0.34   0.66   0.50   0.72   0.73   0.92   0.96
+   Dask         0.33   0.38   0.36   0.38   0.43   0.51   0.52   0.54
+   KubeEdge     0.26   0.36   0.41   0.72   0.74   1.00   0.85   0.98
+   Knative      0.26   0.30   0.48   0.52   0.71   0.76   0.97   0.95
+   (d) W4 Fusion   (1.00 = 301 ms)
+                 q=1    q=2    q=3    q=4    q=5    q=6    q=7    q=8
+   Hedices      0.17   0.29   0.28   0.30   0.40   0.52   0.48   0.63
+   Ray          0.24   0.37   0.99   0.96   0.68   0.67   0.78   0.87
+   Dask         0.32   0.43   0.49   0.53   0.59   0.74   0.94   0.89
+   KubeEdge     0.26   0.33   0.40   0.50   0.55   0.67   0.70   0.98
+   Knative      0.27   0.44   0.65   0.78   0.91   1.00   0.85   0.77
+
+== Fig 13: recovery time after a worker failure, s -- where each curve crosses the dashed 0.5 line (median), its ends, and every failure
+                median      min      max   every failure (sorted)
+   Hedices        0.03     0.03     0.04   0.03  0.03  0.03  0.04  0.04
+   Ray            6.98     6.68   138.09   6.68  6.86  6.98  120.11  138.09
+   Dask          30.28    30.25    30.48   30.25  30.25  30.28  30.32  30.48
+   KubeEdge      27.86    16.92    49.87   16.92  22.42  27.86  33.46  49.87
+   Knative        0.07     0.06    61.70   0.06  0.07  0.07  59.10  61.70
