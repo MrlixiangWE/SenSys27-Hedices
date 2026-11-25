@@ -672,6 +672,20 @@ def _e13_trials(root: Path, a) -> None:
     rng = random.Random(13)
     # failures per system: configs "e13" "trials" (HEDICES_E13_TRIALS overrides it), else --trials
     n = int(os.environ.get("HEDICES_E13_TRIALS") or (CONFIG.get("e13") or {}).get("trials") or a.trials)
+    # the first trial waits for the (possibly freshly deployed) cluster to converge (--settle-max);
+    # later trials start from the steady state the previous one left and only wait for the replaced
+    # pods (settle_after_s).  Waiting the full settle on every trial was most of Fig 13's wall clock
+    # (Knative: 300 s per trial, the autoscaler's pod set never stops changing).
+    e13 = CONFIG.get("e13") or {}
+
+    def _num(env: str, key: str, default: float) -> float:
+        v = os.environ.get(env)
+        if v is None:
+            v = e13.get(key)
+        return float(default if v is None else v)
+
+    settle_first = _num("HEDICES_E13_SETTLE_FIRST", "settle_first_s", 300)
+    settle_after = _num("HEDICES_E13_SETTLE_AFTER", "settle_after_s", 60)
     for system in a.systems:
         for k in range(n):
             out = root / "e13" / f"{system}_{a.e13_workload}_trial{k:02d}.json"
@@ -685,7 +699,8 @@ def _e13_trials(root: Path, a) -> None:
             unit = f"e13-{system}-{k}"
             drive(out, unit, ["--system", system, "--phase", "failure", "--workload", a.e13_workload,
                               "--warmup", str(a.e13_warmup), "--duration", str(a.e13_duration),
-                              "--concurrency", str(a.concurrency), "--status", str(status)], wait=False)
+                              "--concurrency", str(a.concurrency), "--status", str(status),
+                              "--settle-max", str(settle_first if k == 0 else settle_after)], wait=False)
             # the driver publishes its status once warm-up and settle (up to run.py --settle-max, 300 s by
             # default, for the Kubernetes systems) are over
             deadline = time.monotonic() + a.e13_warmup + 300 + 300

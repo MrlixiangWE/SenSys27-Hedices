@@ -30,6 +30,7 @@ node-container images reach the other hosts over HTTP from the master's host.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 
@@ -37,6 +38,8 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -505,8 +508,72 @@ def dockerfile(flavor: str, w: str) -> str:
     return "\n".join(out)
 
 
+def _stage_hash(flavor: str, workloads: list[str]) -> str:
+    """Content hash of what the stage images are built from: the apps tree, the wheelhouse and the
+    workloads' assets (name, size, mtime), the Dockerfiles (library pins, stages) and the flavor."""
+    h = hashlib.sha256()
+    h.update(f"flavor={flavor}\n".encode())
+    apps = tb.ROOT / "apps"
+    for p in sorted(apps.rglob("*")):
+        if p.is_file() and "__pycache__" not in p.parts:
+            h.update(str(p.relative_to(apps)).encode() + b"\0" + p.read_bytes())
+    for p in sorted((ASSETS / "wheels").iterdir()):
+        st = p.stat()
+        h.update(f"wheel:{p.name}:{st.st_size}:{st.st_mtime_ns}\n".encode())
+    for w in sorted(workloads):
+        h.update(dockerfile(flavor, w).encode())
+        for _, assets in gen_k8s.IMAGES[w].values():
+            for a in assets:
+                st = (tb.ROOT / "assets" / a).stat()
+                h.update(f"asset:{a}:{st.st_size}:{st.st_mtime_ns}\n".encode())
+    return h.hexdigest()[:12]
+
+
+def _manifest(repo: str, ref: str):
+    """(manifest bytes, content type) of a repository reference, or None when the registry lacks it."""
+    req = urllib.request.Request(f"http://localhost:5000/v2/{repo}/manifests/{ref}",
+                                 headers={"Accept": "application/vnd.docker.distribution.manifest.v2+json, "
+                                                    "application/vnd.docker.distribution.manifest.list.v2+json, "
+                                                    "application/vnd.oci.image.manifest.v1+json, "
+                                                    "application/vnd.oci.image.index.v1+json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.read(), r.headers.get("Content-Type") or "application/vnd.docker.distribution.manifest.v2+json"
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None  # registry not reachable: build (which needs it anyway) decides
+
+
+def _retag(repo: str, src: str, dst: str) -> bool:
+    """Point ``dst`` at the manifest of ``src`` by copying the manifest in the registry (no build, no blobs)."""
+    m = _manifest(repo, src)
+    if not m:
+        return False
+    body, ctype = m
+    req = urllib.request.Request(f"http://localhost:5000/v2/{repo}/manifests/{dst}", data=body, method="PUT",
+                                 headers={"Content-Type": ctype})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return 200 <= r.status < 300
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
+        return False
+
+
 def images(workloads: list[str]) -> None:
     flavor = (STATE / "flavor").read_text().strip()
+    # the stage images are content-addressed by the hash of what they are built from: when the code,
+    # wheelhouse and assets did not change since the last build, the registry's copy is reused (the
+    # build -- minutes of pip installs -- and its build cache are skipped), and :latest is moved to it.
+    # Only a changed input rebuilds.
+    h = _stage_hash(flavor, workloads)
+    refs = [(w, t, f"hedices-bench/{w}-{t}") for w in workloads for t in gen_k8s.IMAGES[w]]
+    if all(_manifest(repo, f"c{h}") is not None for _, _, repo in refs) \
+            and all(_retag(repo, f"c{h}", "latest") for _, _, repo in refs):
+        print(f"stage images unchanged ({h}): reuse, no build", flush=True)
+        return
     ctx = STATE / "build"
     shutil.rmtree(ctx, ignore_errors=True)
     ctx.mkdir(parents=True)
@@ -521,10 +588,12 @@ def images(workloads: list[str]) -> None:
     for w in workloads:
         (ctx / f"Dockerfile.{w}").write_text(dockerfile(flavor, w))
         for t in gen_k8s.IMAGES[w]:
-            tag = f"localhost:5000/hedices-bench/{w}-{t}:latest"
-            sh(f"DOCKER_BUILDKIT=1 docker build -q -f {ctx}/Dockerfile.{w} --target {t} -t {tag} {ctx}")
-            sh(f"docker push -q {tag}")
-            print(f"pushed {tag}", flush=True)
+            repo = f"hedices-bench/{w}-{t}"
+            sh(f"DOCKER_BUILDKIT=1 docker build -q -f {ctx}/Dockerfile.{w} --target {t} "
+               f"-t localhost:5000/{repo}:c{h} -t localhost:5000/{repo}:latest {ctx}")
+            sh(f"docker push -q localhost:5000/{repo}:c{h}")
+            sh(f"docker push -q localhost:5000/{repo}:latest")
+            print(f"pushed {repo} (c{h})", flush=True)
     # the images now live in the registry: drop the build cache and the dangling layers each rebuild leaves
     # (about 9 GB a cluster start on the master's root disk, which holds kubelet's image filesystem:
     # imagefs.available < 15 % evicts pods)

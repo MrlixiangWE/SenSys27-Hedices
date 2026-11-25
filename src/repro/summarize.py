@@ -146,27 +146,23 @@ def fig10():
 
 def fig11():
     rep = first_report("fig10_r1", "bexp_r1")
-    b = (rep or {}).get("fig11_hedices_breakdown_ms")
-    bb = (rep or {}).get("fig11_baseline_breakdown_ms") or {}
+    d = (rep or {}).get("fig11_breakdown_ms")
     print("\n== Fig 11: latency breakdown, ms -- one block per panel, a row per bar")
-    if not b:
+    if not d or not d.get("hedices"):
         print("   not run")
         return
     parts = ["Pack", "Parse", "Transfer", "Control", "Execute"]
     for w in WL:
-        c = b.get(w)
-        if not c:
+        h = d["hedices"].get(w)
+        if not h:
             continue
-        tot = sum(c.values())
-        rows = [("Hedices", [f"{c.get(k, 0):.2f}" for k in parts] + ["-", f"{tot:.1f}"])]
-        for s in ["ray", "dask", "kubeedge", "knative"]:
-            x = (bb.get(s) or {}).get(w)
+        rows = []
+        for s in ["hedices", "ray", "dask", "kubeedge", "knative"]:
+            x = (d.get(s) or {}).get(w)
             if x:
-                rows.append((SYS_NAME[s], ["-"] * 4 + [f"{x['Execute']:.2f}", f"{x['Overhead']:.2f}", f"{x['Execute'] + x['Overhead']:.1f}"]))
-        print(f"   {WL_NAME[w]}   (Hedices Transfer {100 * c.get('Transfer', 0) / (tot or 1):.1f} % of the bar; paper about 5 %)")
-        table(parts + ["Overhead", "Total"], rows, first=10, width=10)
-    print("   Overhead: the baselines' latency beyond executing the same stage code (not instrumented per component)")
-
+                rows.append((SYS_NAME[s], [f"{x[k]:.2f}" for k in parts] + [f"{sum(x.values()):.1f}"]))
+        print(f"   {WL_NAME[w]}   (Hedices Transfer {100 * h['Transfer'] / (sum(h.values()) or 1):.1f} % of the bar; paper about 5 %)")
+        table(parts + ["Total"], rows, first=10, width=10)
 
 def fig7():
     # Fig 7's own run only: its report, or (a run under way, an older report) its measurement files directly

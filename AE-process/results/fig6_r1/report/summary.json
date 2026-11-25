@@ -423,5 +423,37 @@
   "note": "wire = all bytes sent by all nodes in the measurement window / instances (includes input/output data); deploy_path = Hedices function packages + references + stage metadata, excluding inputs."
  },
  "fig12": "not run",
- "fig13": "not run"
+ "fig13": "not run",
+ "fig11_breakdown_ms": {
+  "hedices": {
+   "W1": {
+    "Pack": 1.458063212921843,
+    "Parse": 0.15164559124968946,
+    "Transfer": 0.2264531319639325,
+    "Control": 1.5822028229013085,
+    "Execute": 8.195267625650889
+   },
+   "W2": {
+    "Pack": 2.138113061664626,
+    "Parse": 0.20873121917247772,
+    "Transfer": 0.3911299573571652,
+    "Control": 2.452363522024825,
+    "Execute": 23.240368635082874
+   },
+   "W3": {
+    "Pack": 1.5157805976923555,
+    "Parse": 0.2757745236158371,
+    "Transfer": 1.1822926264490776,
+    "Control": 2.0174938382115215,
+    "Execute": 110.8749428857349
+   },
+   "W4": {
+    "Pack": 2.0470988389570266,
+    "Parse": 0.4334033408667892,
+    "Transfer": 2.3128432078063774,
+    "Control": 5.002866303548217,
+    "Execute": 67.0076540488973
+   }
+  }
+ }
 }

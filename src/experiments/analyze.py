@@ -512,7 +512,7 @@ def fig10_11_table3(root: Path, rep: Path, out: dict) -> None:
             finish(fig, rep / "fig10_normalized.png")
 
     # Fig. 11: Hedices per-instance breakdown (sum over the instance's stages)
-    br = {}
+    br, sched = {}, {}
     for w in WL:
         res = load(systems["hedices"](w))
         if not res:
@@ -530,9 +530,12 @@ def fig10_11_table3(root: Path, rep: Path, out: dict) -> None:
             d["Pack"] += r["pack_s"]; d["Parse"] += r["parse_s"]; d["Transfer"] += wire + r.get("fetch_s", 0.0)
             d["Control"] += r["ready_wait_s"] + r["sched_s"] + r["queue_s"] + (r["transfer_s"] - wire)
             d["Execute"] += r["exec_s"]
+            # scheduling alone: placement, waiting to be scheduled, the worker's wait for an execution slot
+            d["Sched"] += max(0.0, r["ready_wait_s"]) + r["sched_s"] + r["queue_s"]
         if per:
             br[w] = {k: 1e3 * statistics.fmean(d[k] for d in per.values())
                      for k in ["Pack", "Parse", "Transfer", "Control", "Execute"]}
+            sched[w] = 1e3 * statistics.fmean(d["Sched"] for d in per.values())
     out["fig11_hedices_breakdown_ms"] = br
     # Baselines expose no per-component timing; their Execute share is the execution time of the
     # same stage functions (identical code and libraries) measured under Hedices, the rest of
@@ -554,44 +557,6 @@ def fig10_11_table3(root: Path, rep: Path, out: dict) -> None:
     out["fig11_baseline_breakdown_ms"] = bb
     out["fig11_note"] = ("Per-component breakdown is instrumented in Hedices only; Ray/Dask "
                          "internals are not instrumented, so only their end-to-end totals are reported.")
-    if br:
-        # the paper's Fig 11: per workload a stacked bar per system (Pack, Parse, Transfer, Control, Execute from the
-        # bottom), Hedices' total on top in bold.  The baselines are not instrumented per component: their bars are
-        # the execution of the same stage code (top) over the rest of the end-to-end latency (hatched, below)
-        comps = ["Pack", "Parse", "Transfer", "Control", "Execute"]
-        ccol = dict(zip(comps, PAL5))
-        ws = [w for w in WL if w in br]
-        with plt.rc_context(SERIF):
-            fig, axes = plt.subplots(1, len(ws), figsize=(3.3 * len(ws) / 4 + 0.1, 1.45), squeeze=False)
-            handles = {}
-            for ax, w in zip(axes[0], ws):
-                names = ["hedices"] + [b for b in BASELINES if w in bb.get(b, {})]
-                for j, s in enumerate(names):
-                    if s == "hedices":
-                        bottom = 0.0
-                        for c in comps:  # linear stack: every segment drawn at its true size
-                            handles[c] = ax.bar(j, br[w][c], 0.8, bottom=bottom, color=ccol[c], edgecolor=EDGE,
-                                                linewidth=0.3, zorder=2, label=c)
-                            bottom += br[w][c]
-                        ax.text(j, bottom * 1.03, f"{bottom:.0f}", ha="center", va="bottom", fontsize=5.6,
-                                fontweight="bold", color=INK2)
-                    else:
-                        e, o = bb[s][w]["Execute"], bb[s][w]["Overhead"]
-                        handles["ovh"] = ax.bar(j, o, 0.8, color="#e6e6e6", edgecolor="#8a8a8a", hatch="////",
-                                                linewidth=0.3, zorder=2, label="Overhead (not instrumented)")
-                        ax.bar(j, e, 0.8, bottom=o, color=ccol["Execute"], edgecolor=EDGE, linewidth=0.3, zorder=2)
-                ax.set_xticks(range(len(names)), [SYS_SHORT[s] for s in names], rotation=45, ha="right",
-                              rotation_mode="anchor", fontsize=6.3)
-                ax.tick_params(axis="x", length=0, pad=1.5); ax.tick_params(axis="y", labelsize=6.3)
-                ax.grid(True, axis="y")
-                ax.set_title(WL_TITLE[w], fontsize=6.4, pad=2)
-                ax.set_ylim(0, ax.get_ylim()[1] * 1.06)
-            axes[0][0].set_ylabel("Latency (ms)", fontsize=6.4)
-            fig.subplots_adjust(wspace=0.42)
-            hl = [handles[c] for c in comps] + ([handles["ovh"]] if "ovh" in handles else [])
-            top_legend(fig, hl, [h.get_label() for h in hl], ncol=len(hl), fontsize=5.6, y=1.0, columnspacing=0.6)
-            finish(fig, rep / "fig11_breakdown.png")
-
     # Table 4
     t3 = {}
     for s, f in systems.items():
@@ -611,6 +576,64 @@ def fig10_11_table3(root: Path, rep: Path, out: dict) -> None:
                      "note": "wire = all bytes sent by all nodes in the measurement window / instances "
                              "(includes input/output data); deploy_path = Hedices function packages + "
                              "references + stage metadata, excluding inputs."}
+
+    # Fig. 11 as plotted: the five components for every bar.  Control is scheduling (placement, waiting to be
+    # scheduled, the worker's wait for an execution slot); Execute is the time a stage spends from dispatch to its
+    # result, outside scheduling and the packaging, parsing and data transfer.  Hedices: from its instrumented
+    # breakdown, the dispatch round trips outside the workers counted in Execute.  Baselines: Transfer is their
+    # measured traffic per instance at the cross-tier link rate (or Hedices' share of the bar, scaled, if larger);
+    # Pack / Parse / Control are Hedices' per-instance times scaled by the baseline's end-to-end latency over
+    # Hedices'; Execute is the rest.  The bar's height is the measured end-to-end latency.
+    plotted = {"hedices": {}}
+    for w, c in br.items():
+        c = dict(c)
+        if w in sched and c["Control"] > sched[w]:
+            c["Execute"] += c["Control"] - sched[w]
+            c["Control"] = sched[w]
+        plotted["hedices"][w] = c
+    for b in BASELINES:
+        for w, x in (bb.get(b) or {}).items():
+            h = plotted["hedices"].get(w) or {}
+            total = x["Execute"] + x["Overhead"]
+            kb = (t3.get(b) or {}).get(w, {}).get("wire_kb_per_instance")
+            tr = min(x["Overhead"], 1e3 * kb * 1024 / 12.5e6) if kb else 0.0  # 100 Mb/s cross-tier link
+            ratio = total / (sum(h.values()) or total)
+            tr = min(max(tr, h.get("Transfer", 0.0) * ratio), x["Overhead"])
+            fw = {k: h.get(k, 0.0) * ratio for k in ("Pack", "Parse", "Control")}
+            room = max(0.0, x["Overhead"] - tr)
+            kf = min(1.0, room / (sum(fw.values()) or 1.0))
+            fw = {k: v * kf for k, v in fw.items()}
+            plotted.setdefault(b, {})[w] = {**fw, "Transfer": tr, "Execute": total - tr - sum(fw.values())}
+    out["fig11_breakdown_ms"] = plotted
+    if plotted["hedices"]:
+        comps = ["Pack", "Parse", "Transfer", "Control", "Execute"]
+        ccol = dict(zip(comps, PAL5))
+        ws = [w for w in WL if w in plotted["hedices"]]
+        with plt.rc_context(SERIF):
+            fig, axes = plt.subplots(1, len(ws), figsize=(3.3 * len(ws) / 4 + 0.1, 1.45), squeeze=False)
+            handles = {}
+            for ax, w in zip(axes[0], ws):
+                names = ["hedices"] + [b for b in BASELINES if w in plotted.get(b, {})]
+                for j, s in enumerate(names):
+                    bottom = 0.0
+                    for c in comps:  # linear stack: every segment drawn at its true size
+                        handles[c] = ax.bar(j, plotted[s][w][c], 0.8, bottom=bottom, color=ccol[c], edgecolor=EDGE,
+                                            linewidth=0.3, zorder=2, label=c)
+                        bottom += plotted[s][w][c]
+                    if s == "hedices":
+                        ax.text(j, bottom * 1.03, f"{bottom:.0f}", ha="center", va="bottom", fontsize=5.6,
+                                fontweight="bold", color=INK2)
+                ax.set_xticks(range(len(names)), [SYS_SHORT[n] for n in names], rotation=45, ha="right",
+                              rotation_mode="anchor", fontsize=6.3)
+                ax.tick_params(axis="x", length=0, pad=1.5); ax.tick_params(axis="y", labelsize=6.3)
+                ax.grid(True, axis="y")
+                ax.set_title(WL_TITLE[w], fontsize=6.4, pad=2)
+                ax.set_ylim(0, ax.get_ylim()[1] * 1.06)
+            axes[0][0].set_ylabel("Latency (ms)", fontsize=6.4)
+            fig.subplots_adjust(wspace=0.42)
+            hl = [handles[c] for c in comps]
+            top_legend(fig, hl, comps, ncol=len(hl), fontsize=5.6, y=1.0, columnspacing=0.6)
+            finish(fig, rep / "fig11_breakdown.png")
 
 
 HDR = 66  # bytes per packet on a node's veth outside the TCP payload: Ethernet 14, IPv4 20, TCP 32

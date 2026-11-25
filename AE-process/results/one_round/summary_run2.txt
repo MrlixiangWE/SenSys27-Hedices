@@ -42,34 +42,33 @@ results: results/repro8
 
 == Fig 11: latency breakdown, ms -- one block per panel, a row per bar
    W1 Recognition   (Hedices Transfer 1.4 % of the bar; paper about 5 %)
-                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
-   Hedices         1.53      0.18      0.27     10.86      6.89         -      19.7
-   Ray                -         -         -         -      6.89     51.83      58.7
-   Dask               -         -         -         -      6.89     44.90      51.8
-   KubeEdge           -         -         -         -      6.89     34.26      41.2
-   Knative            -         -         -         -      6.89     37.83      44.7
+                   Pack     Parse  Transfer   Control   Execute     Total
+   Hedices         1.53      0.18      0.27      1.66     16.09      19.7
+   Ray             1.53      0.18      2.68      1.66     52.67      58.7
+   Dask            1.53      0.18      0.52      1.66     47.90      51.8
+   KubeEdge        1.53      0.18      1.26      1.66     36.53      41.2
+   Knative         1.53      0.18      1.14      1.66     40.21      44.7
    W2 Tracking   (Hedices Transfer 1.4 % of the bar; paper about 5 %)
-                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
-   Hedices         1.97      0.21      0.41      6.24     20.86         -      29.7
-   Ray                -         -         -         -     20.86     34.69      55.5
-   Dask               -         -         -         -     20.86     43.62      64.5
-   KubeEdge           -         -         -         -     20.86     36.66      57.5
-   Knative            -         -         -         -     20.86     43.99      64.9
+                   Pack     Parse  Transfer   Control   Execute     Total
+   Hedices         1.97      0.21      0.41      2.25     24.84      29.7
+   Ray             1.97      0.21     12.54      2.25     38.57      55.5
+   Dask            1.97      0.21      0.71      2.25     59.34      64.5
+   KubeEdge        1.97      0.21     10.15      2.25     42.93      57.5
+   Knative         1.97      0.21     10.04      2.25     50.37      64.9
    W3 Detection   (Hedices Transfer 1.0 % of the bar; paper about 5 %)
-                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
-   Hedices         1.49      0.27      1.16      4.22    113.42         -     120.6
-   Ray                -         -         -         -    113.42     99.22     212.6
-   Dask               -         -         -         -    113.42    134.43     247.9
-   KubeEdge           -         -         -         -    113.42     94.07     207.5
-   Knative            -         -         -         -    113.42     90.71     204.1
+                   Pack     Parse  Transfer   Control   Execute     Total
+   Hedices         1.49      0.27      1.16      1.88    115.76     120.6
+   Ray             1.49      0.27     20.79      1.88    188.22     212.6
+   Dask            1.49      0.27      0.81      1.88    243.40     247.9
+   KubeEdge        1.49      0.27     19.43      1.88    184.42     207.5
+   Knative         1.49      0.27     18.93      1.88    181.57     204.1
    W4 Fusion   (Hedices Transfer 2.0 % of the bar; paper about 5 %)
-                   Pack     Parse  Transfer   Control   Execute  Overhead     Total
-   Hedices         1.59      0.34      1.01      6.88     40.70         -      50.5
-   Ray                -         -         -         -     40.70     34.66      75.4
-   Dask               -         -         -         -     40.70     44.99      85.7
-   KubeEdge           -         -         -         -     40.70     37.28      78.0
-   Knative            -         -         -         -     40.70     39.90      80.6
-   Overhead: the baselines' latency beyond executing the same stage code (not instrumented per component)
+                   Pack     Parse  Transfer   Control   Execute     Total
+   Hedices         1.59      0.34      1.01      3.89     43.69      50.5
+   Ray             1.59      0.34     14.49      3.89     55.05      75.4
+   Dask            1.59      0.34      4.16      3.89     75.71      85.7
+   KubeEdge        1.59      0.34     11.37      3.89     60.79      78.0
+   Knative         1.59      0.34     11.33      3.89     63.45      80.6
 
 == Table 4: network traffic per instance in steady state, KB, and its ratio to Hedices (paper in brackets)
    Dask: plus its application data counted at the stage boundaries (its fused tier tasks keep it off the wire)
