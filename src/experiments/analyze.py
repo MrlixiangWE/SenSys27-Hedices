@@ -581,9 +581,8 @@ def fig10_11_table3(root: Path, rep: Path, out: dict) -> None:
     # scheduled, the worker's wait for an execution slot); Execute is the time a stage spends from dispatch to its
     # result, outside scheduling and the packaging, parsing and data transfer.  Hedices: from its instrumented
     # breakdown, the dispatch round trips outside the workers counted in Execute.  Baselines: Transfer is their
-    # measured traffic per instance at the cross-tier link rate (or Hedices' share of the bar, scaled, if larger);
-    # Pack / Parse / Control are Hedices' per-instance times scaled by the baseline's end-to-end latency over
-    # Hedices'; Execute is the rest.  The bar's height is the measured end-to-end latency.
+    # measured traffic per instance at the cross-tier link rate; Pack / Parse / Control are Hedices' per-instance
+    # times for the workload; Execute is the rest.  The bar's height is the measured end-to-end latency.
     plotted = {"hedices": {}}
     for w, c in br.items():
         c = dict(c)
@@ -597,9 +596,7 @@ def fig10_11_table3(root: Path, rep: Path, out: dict) -> None:
             total = x["Execute"] + x["Overhead"]
             kb = (t3.get(b) or {}).get(w, {}).get("wire_kb_per_instance")
             tr = min(x["Overhead"], 1e3 * kb * 1024 / 12.5e6) if kb else 0.0  # 100 Mb/s cross-tier link
-            ratio = total / (sum(h.values()) or total)
-            tr = min(max(tr, h.get("Transfer", 0.0) * ratio), x["Overhead"])
-            fw = {k: h.get(k, 0.0) * ratio for k in ("Pack", "Parse", "Control")}
+            fw = {k: h.get(k, 0.0) for k in ("Pack", "Parse", "Control")}
             room = max(0.0, x["Overhead"] - tr)
             kf = min(1.0, room / (sum(fw.values()) or 1.0))
             fw = {k: v * kf for k, v in fw.items()}
@@ -868,6 +865,16 @@ def fig13(root: Path, rep: Path, out: dict) -> None:
             gap, end = max(stalls)
             if gap > max(1.0, 10 * normal):
                 val = max(val or 0.0, end - t)
+        # an instance sent after the fault that was still unfinished when the load would have ended (the run's
+        # measurement window; a run that takes several failures records each one's window) stalled on it: recovery
+        # lasts until it completes.  With a run that stops its load at the end of the window this is the stall the
+        # rule above sees in the completions; with a load that goes on it is not visible there.
+        win = r["injection"].get("window_s", r["measure_window"][1] - t)
+        lat = sorted(dt for _, w, dt in r["instances_wall"] if w + dt <= t)
+        slow = max(1.0, 10 * lat[len(lat) // 2]) if lat else 1.0
+        late = [w + dt for _, w, dt in r["instances_wall"] if t <= w <= t + bound and dt > slow and w + dt > t + win]
+        if late:
+            val = max(val or 0.0, max(late) - t)
         # instances still affected that never completed within the bound did not recover: they
         # count at the bound (right-censored), not as if they had never been affected
         if any(f[0] >= t for f in r.get("failed", ())):

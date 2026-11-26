@@ -16,13 +16,20 @@ Q=${AE_QUEUE:-$ROOT/queue}
 PY=$ROOT/.venv/bin/python
 mkdir -p "$Q/pending" "$Q/running" "$Q/done" 2>/dev/null
 
-# expected minutes per step (repro/monitor.py holds the same table)
-est() {  # est ROUNDS STEP... -> minutes
-  local r=$1 m=0 s; shift
+# Fig 13's failures per system: a job's FIG13_TRIALS, else configs e13 "trials"
+DEF_TRIALS=$("$PY" -c 'import json; print(json.load(open("experiments/configs/phys6r.json"))["e13"]["trials"])' 2>/dev/null || echo 5)
+trials_of() { local t; t=$(field "$1" FIG13_TRIALS); echo "${t:-$DEF_TRIALS}"; }
+
+# expected minutes per step (repro/monitor.py holds the same table); Fig 13 about 6.5 min per failure of all five
+# systems, plus starting them
+est() {  # est ROUNDS TRIALS STEP... -> minutes
+  local r=$1 t=$2 m=0 s; shift 2
+  local f13=$((25 + 13 * t / 2))
   for s in "$@"; do case $s in
     sync|fig8|summary) m=$((m + 1)) ;; fig6) m=$((m + 20 * r)) ;; fig7) m=$((m + 60)) ;; fig9) m=$((m + 55)) ;;
-    fig12) m=$((m + 50)) ;; fig13) m=$((m + 85)) ;; fig10) m=$((m + 60 * r)) ;; table3|table4) m=$((m + 85)) ;;
-    hexp) m=$((m + 20 * r + 60 + 2 + 55)) ;; bexp) m=$((m + 190 * r)) ;; all) m=$((m + 2 + 20 * r + 60 + 2 + 55 + 190 * r)) ;;
+    fig12) m=$((m + 50)) ;; fig13) m=$((m + f13)) ;; fig10) m=$((m + 60 * r)) ;; table3|table4) m=$((m + 85)) ;;
+    hexp) m=$((m + 20 * r + 60 + 2 + 55)) ;; bexp) m=$((m + (105 + f13) * r)) ;;
+    all) m=$((m + 2 + 20 * r + 60 + 2 + 55 + (105 + f13) * r)) ;;
     *) m=$((m + 5)) ;; esac; done
   echo $m
 }
@@ -33,7 +40,7 @@ clock() { date -d "@$1" +'%a %H:%M'; }
 # minutes left of the running job: its estimate minus the time since it started, at least 5
 left_running() {
   local j; j=$(ls "$Q/running"/*.job 2>/dev/null | head -1); [ -n "$j" ] || { echo 0; return; }
-  local t0 e; t0=$(field "$j" STARTED); t0=${t0:-$(date +%s)}; e=$(est "$(field "$j" ROUNDS)" $(field "$j" STEPS))
+  local t0 e; t0=$(field "$j" STARTED); t0=${t0:-$(date +%s)}; e=$(est "$(field "$j" ROUNDS)" "$(trials_of "$j")" $(field "$j" STEPS))
   local l=$((e - ($(date +%s) - t0) / 60)); [ $l -lt 5 ] && l=5; echo $l
 }
 
@@ -42,15 +49,17 @@ submit() {
   [[ $name =~ ^[A-Za-z0-9_-]{1,32}$ ]] && [ $# -gt 0 ] || { echo "usage: queue.sh submit NAME STEP...   (NAME: letters, digits, - or _)"; exit 2; }
   local s; for s in "$@"; do grep -q "^step_$s()" repro/run_all.sh || [ "$s" = all ] || { echo "unknown step: $s"; exit 2; }; done
   local id; id=$(exec 8>>"$Q/.seq.lock"; flock 8; n=$(( $(cat "$Q/.seq" 2>/dev/null || echo 0) + 1 )); echo $n > "$Q/.seq"; printf '%03d' $n)
-  local r=${ROUNDS:-1}
+  local r=${ROUNDS:-1} t=${FIG13_TRIALS:-}
+  [ -z "$t" ] || [[ $t =~ ^[1-9][0-9]{0,2}$ ]] || { echo "FIG13_TRIALS: a number of failures per system (1-999)"; exit 2; }
   printf 'NAME=%s\nUSER=%s\nSTEPS=%s\nROUNDS=%s\nOUT=results/ae/%s-%s\nSUBMITTED=%s\n' \
     "$name" "$(id -un)" "$*" "$r" "$id" "$name" "$(date +%s)" > "$Q/pending/$id.job.tmp"
+  [ -z "$t" ] || echo "FIG13_TRIALS=$t" >> "$Q/pending/$id.job.tmp"
   mv "$Q/pending/$id.job.tmp" "$Q/pending/$id.job"; chmod a+r "$Q/pending/$id.job"
   local ahead; ahead=$(( $(ls "$Q/pending"/*.job | wc -l) - 1 ))
   local wait=$(left_running) j
   for j in $(ls "$Q/pending"/*.job | sort); do [ "$j" = "$Q/pending/$id.job" ] && break
-    wait=$((wait + $(est "$(field "$j" ROUNDS)" $(field "$j" STEPS)))); done
-  local e; e=$(est "$r" "$@")
+    wait=$((wait + $(est "$(field "$j" ROUNDS)" "$(trials_of "$j")" $(field "$j" STEPS)))); done
+  local e; e=$(est "$r" "${t:-$DEF_TRIALS}" "$@")
   echo "queued job $id ($name: $*, ROUNDS=$r) -- $ahead job(s) ahead of it"
   echo "  starts about $(clock $(( $(date +%s) + wait * 60 ))), runs about $(hm "$e") h, results in results/ae/$id-$name/"
   echo "  follow it with: bash $ROOT/AE-process/queue.sh status   /   bash $ROOT/AE-process/queue.sh watch $id"
@@ -64,17 +73,17 @@ status() {
     local out t0; out=$(field "$j" OUT); t0=$(field "$j" STARTED)
     local step; step=$(awk '$2=="start"{s=$3} END{print s}' "$ROOT/$out/.progress" 2>/dev/null)
     if [ -z "$t0" ]; then  # taken from the queue, waiting for the testbed lock (a run started by hand holds it)
-      echo "  $(basename "$j" .job)  $(field "$j" NAME)  [$(field "$j" STEPS), ROUNDS=$(field "$j" ROUNDS)]  waiting for the testbed"
+      echo "  $(basename "$j" .job)  $(field "$j" NAME)  [$(field "$j" STEPS), ROUNDS=$(field "$j" ROUNDS)$(t=$(field "$j" FIG13_TRIALS); [ -n "$t" ] && echo ", FIG13_TRIALS=$t")]  waiting for the testbed"
     else
-      echo "  $(basename "$j" .job)  $(field "$j" NAME)  [$(field "$j" STEPS), ROUNDS=$(field "$j" ROUNDS)]  step ${step:-starting}," \
+      echo "  $(basename "$j" .job)  $(field "$j" NAME)  [$(field "$j" STEPS), ROUNDS=$(field "$j" ROUNDS)$(t=$(field "$j" FIG13_TRIALS); [ -n "$t" ] && echo ", FIG13_TRIALS=$t")]  step ${step:-starting}," \
            "running $(hm $(( (now - t0) / 60 ))) h, ends about $(clock $(( now + $(left_running) * 60 )))"
     fi
   else echo "  (none)"; fi
   echo "== queued"
   local wait; wait=$(left_running); local any=0
   for j in $(ls "$Q/pending"/*.job 2>/dev/null | sort); do any=1
-    local e; e=$(est "$(field "$j" ROUNDS)" $(field "$j" STEPS))
-    echo "  $(basename "$j" .job)  $(field "$j" NAME)  [$(field "$j" STEPS), ROUNDS=$(field "$j" ROUNDS)]  starts about $(clock $(( now + wait * 60 ))), runs about $(hm "$e") h"
+    local e; e=$(est "$(field "$j" ROUNDS)" "$(trials_of "$j")" $(field "$j" STEPS))
+    echo "  $(basename "$j" .job)  $(field "$j" NAME)  [$(field "$j" STEPS), ROUNDS=$(field "$j" ROUNDS)$(t=$(field "$j" FIG13_TRIALS); [ -n "$t" ] && echo ", FIG13_TRIALS=$t")]  starts about $(clock $(( now + wait * 60 ))), runs about $(hm "$e") h"
     wait=$((wait + e)); done
   [ $any = 1 ] || echo "  (none)"
   echo "== finished (latest 5)"
@@ -124,7 +133,7 @@ runner() {
     echo "STARTED=$(date +%s)" >> "$j"
     local out; out=$(field "$j" OUT); mkdir -p "$out"; chmod a+rx "$out"
     rm -f "$Q/running/.cancel"
-    AE_QUEUE_JOB=$id REPRO_OUT=$out ROUNDS=$(field "$j" ROUNDS) NO_MONITOR=1 \
+    AE_QUEUE_JOB=$id REPRO_OUT=$out ROUNDS=$(field "$j" ROUNDS) FIG13_TRIALS=$(field "$j" FIG13_TRIALS) NO_MONITOR=1 \
       setsid bash repro/run_all.sh $(field "$j" STEPS) > "$out/run.log" 2>&1 9>&- &
     local pid=$!; echo $pid > "$Q/running/.pid"
     while kill -0 $pid 2>/dev/null; do

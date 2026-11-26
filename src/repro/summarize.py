@@ -340,6 +340,16 @@ def _recovery(r):
         gap, end = max(stalls)
         if gap > max(1.0, 10 * normal):
             val = max(val or 0.0, end - t)
+    # an instance sent after the fault that was still unfinished when the load would have ended (the run's
+    # measurement window; a run that takes several failures records each one's window) stalled on it: recovery
+    # lasts until it completes.  With a run that stops its load at the end of the window this is the stall the
+    # rule above sees in the completions; with a load that goes on it is not visible there.
+    win = r["injection"].get("window_s", r["measure_window"][1] - t)
+    lat = sorted(dt for _, w, dt in r["instances_wall"] if w + dt <= t)
+    slow = max(1.0, 10 * lat[len(lat) // 2]) if lat else 1.0
+    late = [w + dt for _, w, dt in r["instances_wall"] if t <= w <= t + bound and dt > slow and w + dt > t + win]
+    if late:
+        val = max(val or 0.0, max(late) - t)
     if any(f[0] >= t for f in r.get("failed", ())):
         val = max(val or 0.0, bound)
     return val

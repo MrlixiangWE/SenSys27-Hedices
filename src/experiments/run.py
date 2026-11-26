@@ -72,6 +72,8 @@ def main():
     p.add_argument("--rounds", type=int, default=4)
     p.add_argument("--duration", type=float, default=40.0)
     p.add_argument("--status", default="", help="failure: file to publish busy workers to")
+    p.add_argument("--stop-file", default="",
+                   help="failure: run the load until this file exists (several failures in one run) instead of --duration")
     p.add_argument("--hb-timeout", type=float, default=1.5, help="Hedices worker-failure detection: 3 missed 0.5 s heartbeats")
     p.add_argument("--recover-timeout", type=float, default=120.0,
                    help="failure phase: per-instance bound after which an instance counts as not recovered")
@@ -377,30 +379,48 @@ def failure(s, a) -> dict:
     s.reset()
     stop = threading.Event()
 
+    inflight: dict = {}
+    lat: list = []  # recent latencies, for the stall threshold
+
     def publish():
         while not stop.wait(0.2):
             try:
                 busy = sorted(s.busy())
             except Exception:
                 busy = []
+            now = time.time()
+            # what the orchestrator needs to decide that the system has recovered from an injected failure: how long
+            # ago an instance last completed, and how many in flight have run far longer than an instance normally
+            # takes (max(2 s, 10 x the recent median latency))
+            recent = sorted(lat[-200:])
+            thr = max(2.0, 10 * recent[len(recent) // 2]) if recent else 2.0
+            fl = [w for k, w in list(inflight.items()) if k != "_done"]
+            st = {"t": now, "busy": busy, "since_done": now - inflight.get("_done", t1),
+                  "stuck": sum(1 for w in fl if now - w > thr), "inflight": len(fl), "stall_s": thr}
             with open(a.status + ".tmp", "w") as fh:
-                json.dump({"t": time.time(), "busy": busy}, fh)
-            import os
+                json.dump(st, fh)
             os.replace(a.status + ".tmp", a.status)
 
     th = threading.Thread(target=publish, daemon=True)
-    th.start()
     t1 = time.time()
     failed: list = []
 
     def timed(args, kw):
         # an instance the system does not recover within the bound counts as failed at the bound
         # (recorded, not fatal: the other instances still measure recovery)
+        t, sent = time.perf_counter(), time.time()
         try:
             run_one(args, kw, timeout=a.recover_timeout)
         except Exception as exc:
-            failed.append([time.time(), repr(exc)[:200]])
-    recs, _ = closed_loop(timed, make_input, a.concurrency, duration_s=a.duration, start=nxt)
+            failed.append([time.time(), repr(exc)[:200], sent])  # when it failed, why, when it was sent
+        else:
+            lat.append(time.perf_counter() - t)
+    th.start()
+    if a.stop_file:  # several failures in one run: the orchestrator ends the load when it is done injecting
+        recs, _ = closed_loop(timed, make_input, a.concurrency, duration_s=a.duration, start=nxt,
+                              stop=lambda: os.path.exists(a.stop_file), inflight=inflight)
+    else:
+        recs, _ = closed_loop(timed, make_input, a.concurrency, duration_s=a.duration, start=nxt, inflight=inflight)
     stop.set()
     return {"warmup_window": [t0, t1], "measure_window": [t1, time.time()],
             "instances_wall": [[i, w, dt] for i, w, dt in recs], "failed": failed,

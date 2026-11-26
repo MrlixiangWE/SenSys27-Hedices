@@ -9,6 +9,7 @@ a run started elsewhere:
     python3 repro/monitor.py --out results/ae [--pid PID]
 """
 import argparse
+import json
 import os
 import shlex
 import shutil
@@ -23,6 +24,20 @@ import time
 MINUTES = {"sync": 1, "fig6": 20, "fig7": 60, "fig8": 2, "fig9": 55, "fig12": 50, "fig13": 85,
            "fig10": 60, "table3": 85, "table4": 85, "bexp": 190, "summary": 1}
 PER_ROUND = {"fig6", "fig10", "bexp"}
+
+
+def _fig13_trials():
+    """Fig 13's failures per system: FIG13_TRIALS, else configs e13 "trials" (repro/queue.sh estimates the same)."""
+    try:
+        return int(os.environ.get("FIG13_TRIALS") or
+                   json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "experiments",
+                                               "configs", "phys6r.json")))["e13"]["trials"])
+    except (OSError, ValueError, KeyError):
+        return 5
+
+
+MINUTES["fig13"] = 25 + 13 * _fig13_trials() // 2  # about 6.5 min per failure of all five systems, plus starting
+MINUTES["bexp"] = 105 + MINUTES["fig13"]
 HEXP = ["fig6", "fig7", "fig8", "fig9"]
 
 
@@ -49,12 +64,17 @@ def stat_script(interval=2.0):
 STAT = stat_script(2.0)
 
 
-def expected(step, rounds):
+def expected(step, rounds, trials=None):
+    """Expected minutes of a step; trials: Fig 13's failures per system of the run (default: FIG13_TRIALS / configs)."""
     if step == "hexp":
-        return sum(expected(s, rounds) for s in HEXP)
+        return sum(expected(s, rounds, trials) for s in HEXP)
     if step == "all":
-        return sum(expected(s, rounds) for s in ("sync", "hexp", "bexp", "summary"))
-    return MINUTES.get(step, 5) * (rounds if step in PER_ROUND else 1)
+        return sum(expected(s, rounds, trials) for s in ("sync", "hexp", "bexp", "summary"))
+    m = dict(MINUTES)
+    if trials:
+        m["fig13"] = 25 + 13 * int(trials) // 2
+        m["bexp"] = 105 + m["fig13"]
+    return m.get(step, 5) * (rounds if step in PER_ROUND else 1)
 
 
 class Host(threading.Thread):

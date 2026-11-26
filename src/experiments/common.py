@@ -14,10 +14,12 @@ MASTER_IP = os.environ.get("HEDICES_IP", "127.0.0.1")
 
 
 def closed_loop(run_one, make_input, concurrency: int, *, duration_s: float | None = None,
-                n: int | None = None, start: int = 0):
+                n: int | None = None, start: int = 0, stop=None, inflight: dict | None = None):
     """``concurrency`` clients; each submits one workflow instance and waits for it.
 
-    Stops after ``duration_s`` seconds (warm-up) or ``n`` completed instances.
+    Stops after ``duration_s`` seconds (warm-up) or ``n`` completed instances, or once ``stop()`` is true (no new
+    instance is submitted; the ones in flight finish).  ``inflight``, when given, holds index -> wall start of the
+    instances in flight, and ``inflight["_done"]`` the wall time of the latest completion (for a caller watching).
     Returns (records, next_index); a record is (index, wall_start, latency_s).
     """
     lock = threading.Lock()
@@ -33,18 +35,28 @@ def closed_loop(run_one, make_input, concurrency: int, *, duration_s: float | No
                     return
                 if deadline is not None and time.monotonic() >= deadline:
                     return
+                if stop is not None and stop():
+                    return
                 i = nxt[0]
                 nxt[0] += 1
             args, kwargs = make_input(i)
             wall, t0 = time.time(), time.perf_counter()
+            if inflight is not None:
+                with lock:
+                    inflight[i] = wall
             try:
                 run_one(args, kwargs)
             except Exception as exc:  # surface the first failure
                 with lock:
                     errors.append(exc)
+                    if inflight is not None:
+                        inflight.pop(i, None)
                 return
             with lock:
                 done.append((i, wall, time.perf_counter() - t0))
+                if inflight is not None:
+                    inflight.pop(i, None)
+                    inflight["_done"] = time.time()
 
     threads = [threading.Thread(target=client, daemon=True) for _ in range(concurrency)]
     for t in threads:

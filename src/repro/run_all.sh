@@ -31,6 +31,8 @@ SYSTEMS="hedices ray dask kubeedge knative"
 # long runs and cold starts trip the stalled-sample check (>= 2 samples above 5x the median) without a
 # stall; every final measurement was taken with it off
 export NO_STALLCHK=${NO_STALLCHK:-1}
+# Fig 13's failures per system: FIG13_TRIALS overrides configs e13 "trials" for this run
+[ -n "${FIG13_TRIALS:-}" ] && export HEDICES_E13_TRIALS=$FIG13_TRIALS
 # scan overrides must not leak into a reproduction
 unset HEDICES_E6_CACHE HEDICES_E6_SEGMENT HEDICES_E6_CONC HEDICES_INPUT_IMU HEDICES_INPUT_SEGMENT HEDICES_CACHE_ENTRIES
 

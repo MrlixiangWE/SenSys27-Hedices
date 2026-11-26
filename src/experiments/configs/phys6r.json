@@ -38,6 +38,7 @@
     "W4": {"concurrency": 16, "topology": "topology_phys6r_f9b.json", "slot_policy": "demand", "max_overlap": 2}
   },
   "e12": {"bursts": "1,2,3,4,5,6,7,8", "rounds": 4},
-  "_e13": "Fig 13 (plan e13): worker failures per system (trials), and each trial's warm-up and measurement window (s). settle_first_s: the first trial waits for a freshly deployed cluster to converge; settle_after_s: the later trials start from the steady state the previous trial left and only wait for the pods replaced after its failure (the full settle on every trial was most of this step's wall clock; the Knative autoscaler's pod set never stops changing, so it always ran to the cap).",
-  "e13": {"workload": "W4", "trials": 5, "warmup_s": 20, "duration_s": 30, "settle_first_s": 300, "settle_after_s": 60}
+  "_e13": "Fig 13 (plan e13): worker failures per system (trials), and each trial's warm-up and measurement window (s). settle_first_s: the first trial waits for a freshly deployed cluster to converge; settle_after_s: the later trials start from the steady state the previous trial left and only wait for the pods replaced after its failure (the full settle on every trial was most of this step's wall clock; the Knative autoscaler's pod set never stops changing, so it always ran to the cap).  session: the systems that take several failures in one run (started and warmed up once; Ray, whose node cut off past its health check is declared dead for good, starts afresh for every failure), at most session_trials per run; each failure is recorded as a one-failure run records it (the link down at least to the end of its measurement window, then until no instance stalls for quiet_s; gap_s of normal load before the next one).",
+  "e13": {"workload": "W4", "trials": 100, "warmup_s": 20, "duration_s": 30, "settle_first_s": 300, "settle_after_s": 60,
+          "session": ["hedices", "dask", "kubeedge", "knative"], "session_trials": 25, "quiet_s": 3, "gap_s": 10}
 }

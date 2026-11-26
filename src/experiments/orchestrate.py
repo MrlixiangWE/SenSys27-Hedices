@@ -669,68 +669,138 @@ def plan_e13(root: Path, a) -> None:
 
 
 def _e13_trials(root: Path, a) -> None:
+    """Fig 13's failure trials.  A system in configs e13 "session" takes several failures in one run: it is started and
+    warmed up once, then for each trial a busy worker is cut off, the link restored once the system has recovered
+    (not before the end of the trial's measurement window -- as a run with one failure: the run's duration less the
+    4-10 s of load before the cut, drawn the same way -- then once no instance has stalled and completions flow for
+    quiet_s), and the next failure injected after gap_s, once the load runs normally again.  Each failure is written as its own trial
+    file (the instances of its window), so experiments.analyze reads them as before.  Other systems (Ray: a node
+    cut off past its health check is declared dead and its raylet and actors do not come back) start afresh for
+    every trial and take one failure each.  The settings: configs "e13", the environment HEDICES_E13_<KEY>."""
     rng = random.Random(13)
-    # failures per system: configs "e13" "trials" (HEDICES_E13_TRIALS overrides it), else --trials
-    n = int(os.environ.get("HEDICES_E13_TRIALS") or (CONFIG.get("e13") or {}).get("trials") or a.trials)
-    # the first trial waits for the (possibly freshly deployed) cluster to converge (--settle-max);
-    # later trials start from the steady state the previous one left and only wait for the replaced
-    # pods (settle_after_s).  Waiting the full settle on every trial was most of Fig 13's wall clock
-    # (Knative: 300 s per trial, the autoscaler's pod set never stops changing).
     e13 = CONFIG.get("e13") or {}
 
-    def _num(env: str, key: str, default: float) -> float:
-        v = os.environ.get(env)
+    def _num(key: str, default: float) -> float:
+        v = os.environ.get("HEDICES_E13_" + key.upper())
         if v is None:
             v = e13.get(key)
         return float(default if v is None else v)
 
-    settle_first = _num("HEDICES_E13_SETTLE_FIRST", "settle_first_s", 300)
-    settle_after = _num("HEDICES_E13_SETTLE_AFTER", "settle_after_s", 60)
+    # failures per system: configs "e13" "trials" (HEDICES_E13_TRIALS overrides it), else --trials
+    n = int(os.environ.get("HEDICES_E13_TRIALS") or e13.get("trials") or a.trials)
+    # the first run waits for the (possibly freshly deployed) cluster to converge (--settle-max); later runs start
+    # from the steady state the previous one left and only wait for the replaced pods (settle_after_s)
+    settle_first, settle_after = _num("settle_first_s", 300), _num("settle_after_s", 60)
+    quiet, gap = _num("quiet_s", 3), _num("gap_s", 10)
+    per_run = max(1, int(_num("session_trials", 25)))
+    env_s = os.environ.get("HEDICES_E13_SESSION")
+    session = set((env_s.split(",") if env_s is not None else e13.get("session", [])) or [])
+    bound = 120.0  # experiments.run --recover-timeout
+    # a worker whose tier keeps a replacement (the scaled layout has a single cloud worker, the paper's testbed two)
+    spare = {w["name"] for w in WORKERS if sum(x["tier"] == w["tier"] for x in WORKERS) > 1}
     for system in a.systems:
-        for k in range(n):
-            out = root / "e13" / f"{system}_{a.e13_workload}_trial{k:02d}.json"
-            if done(out):
-                continue
+        pending = [k for k in range(n) if not done(root / "e13" / f"{system}_{a.e13_workload}_trial{k:02d}.json")]
+        if not pending:
+            continue
+        runs = [pending[i:i + per_run] for i in range(0, len(pending), per_run)] if system in session \
+            else [[k] for k in pending]
+        for r_i, batch in enumerate(runs):
+            first = batch[0] == 0
             start(system, [a.e13_workload])
-            status = root / "e13" / f".status_{system}_{k}.json"
+            tag = f"{system}_{batch[0]:02d}"
+            raw = root / "e13" / f".run_{system}_{a.e13_workload}_{batch[0]:02d}.json"
+            status = root / "e13" / f".status_{tag}.json"
+            stopf = root / "e13" / f".stop_{tag}"
             status.parent.mkdir(parents=True, exist_ok=True)
             os.chown(status.parent, *USER_IDS)
-            status.unlink(missing_ok=True)
-            unit = f"e13-{system}-{k}"
-            drive(out, unit, ["--system", system, "--phase", "failure", "--workload", a.e13_workload,
-                              "--warmup", str(a.e13_warmup), "--duration", str(a.e13_duration),
-                              "--concurrency", str(a.concurrency), "--status", str(status),
-                              "--settle-max", str(settle_first if k == 0 else settle_after)], wait=False)
-            # the driver publishes its status once warm-up and settle (up to run.py --settle-max, 300 s by
-            # default, for the Kubernetes systems) are over
+            for f in (status, stopf, raw):
+                f.unlink(missing_ok=True)
+            unit = f"e13-{tag}"
+            cap = len(batch) * (bound + a.e13_duration + quiet + gap + 30) + 60
+            drive(raw, unit, ["--system", system, "--phase", "failure", "--workload", a.e13_workload,
+                              "--warmup", str(a.e13_warmup), "--duration", str(cap),
+                              "--concurrency", str(a.concurrency), "--status", str(status), "--stop-file", str(stopf),
+                              "--settle-max", str(settle_first if first else settle_after)], wait=False)
+
+            def alive() -> bool:
+                return subprocess.run(f"systemctl is-active --quiet hed-{unit}.service", shell=True).returncode == 0
+
+            def st() -> dict:
+                try:
+                    return json.loads(status.read_text())
+                except (OSError, ValueError):
+                    return {}
+
+            def healthy(x: dict) -> bool:  # instances complete as usual, none stalled
+                return bool(x) and x.get("stuck", 1) == 0 and x.get("since_done", 1e9) < max(1.0, x.get("stall_s", 2.0) / 2)
+
+            # the driver publishes its status once warm-up and settle (up to run.py --settle-max) are over
             deadline = time.monotonic() + a.e13_warmup + 300 + 300
-            while not status.exists() and time.monotonic() < deadline:
+            while not status.exists() and time.monotonic() < deadline and alive():
                 time.sleep(0.2)
-            time.sleep(rng.uniform(4, 10))
-            busy = []
-            for _ in range(50):
-                busy = json.loads(status.read_text())["busy"]
-                busy = [IP2NODE.get(b, b) for b in busy if IP2NODE.get(b, b) in IP2NODE.values()]
-                if busy:
+            inj = []
+            for k in batch:
+                if not alive():
                     break
-                time.sleep(0.1)
-            # a worker whose tier keeps a replacement (the scaled layout has a single cloud worker,
-            # the paper's testbed two)
-            spare = {w["name"] for w in WORKERS if sum(x["tier"] == w["tier"] for x in WORKERS) > 1}
-            busy = [b for b in busy if b in spare]
-            victim = rng.choice(busy) if busy else rng.choice(sorted(spare))
-            t_inject = time.time()
-            tb.link(tb.node(victim), "down")
-            log(f"  e13 {system} trial {k}: victim={victim} busy={busy}")
-            while subprocess.run(f"systemctl is-active --quiet hed-{unit}.service", shell=True).returncode == 0:
+                # steady load before the cut: gap_s after the previous restore, until the load runs normally
+                pre = rng.uniform(4, 10)
+                t_ok = time.monotonic() + (gap if inj else 0) + pre
+                window = max(0.0, a.e13_duration - pre)  # the measurement window after the cut of a one-failure run
+                while alive() and (time.monotonic() < t_ok or not healthy(st())) and time.monotonic() < t_ok + bound:
+                    time.sleep(0.2)
+                busy = []
+                for _ in range(50):
+                    busy = [IP2NODE.get(b, b) for b in st().get("busy", [])]
+                    busy = [b for b in busy if b in IP2NODE.values()]
+                    if busy:
+                        break
+                    time.sleep(0.1)
+                busy = [b for b in busy if b in spare]
+                victim = rng.choice(busy) if busy else rng.choice(sorted(spare))
+                t_inject = time.time()
+                tb.link(tb.node(victim), "down")
+                log(f"  e13 {system} trial {k}: victim={victim} busy={busy}")
+                # recovered: down at least to the end of the window, then quiet_s in a row without a stalled instance,
+                # completions flowing; at most the per-instance recovery bound
+                calm = None
+                while alive() and time.time() < t_inject + bound + quiet + 5:
+                    now = time.time()
+                    if now >= t_inject + window and healthy(st()):
+                        calm = calm or now
+                        if now - calm >= quiet:
+                            break
+                    else:
+                        calm = None
+                    time.sleep(0.2)
+                tb.link(tb.node(victim), "up")
+                inj.append({"k": k, "t": t_inject, "victim": victim, "busy": busy, "t_restore": time.time(),
+                            "window_s": window})
+            stopf.touch()
+            while alive():
                 time.sleep(0.5)
-            tb.link(tb.node(victim), "up")
-            if out.exists():
-                res = json.loads(out.read_text())
-                res["injection"] = {"t": t_inject, "victim": victim, "busy": busy}
-                out.write_text(json.dumps(res))
-            else:
-                log(f"  e13 {system} trial {k}: driver produced no result")
+            if not raw.exists():
+                log(f"  e13 {system} trials {batch[0]}-{batch[-1]}: driver produced no result")
+                continue
+            res = json.loads(raw.read_text())
+            # one trial file per failure, as a run with that one failure would have recorded it: the instances sent
+            # from the previous failure's restore (the run's start for the first) until the end of this failure's
+            # window -- where such a run stops its load -- and those of them that failed
+            lo = res["measure_window"][0]
+            for idx, x in enumerate(inj):
+                hi = min(x["t"] + x["window_s"], x["t_restore"])
+                out = dict(res)
+                out["instances_wall"] = [r for r in res["instances_wall"] if lo <= r[1] < hi]
+                out["failed"] = [f for f in res.get("failed", []) if lo <= f[2] < hi]
+                out["measure_window"] = [lo, x["t"] + x["window_s"]]
+                out["injection"] = {"t": x["t"], "victim": x["victim"], "busy": x["busy"], "t_restore": x["t_restore"],
+                                    "window_s": x["window_s"], "run": raw.name, "failures_in_run": len(inj),
+                                    "index_in_run": idx}
+                f = root / "e13" / f"{system}_{a.e13_workload}_trial{x['k']:02d}.json"
+                f.write_text(json.dumps(out))
+                os.chown(f, *USER_IDS)
+                lo = x["t_restore"]
+            if len(inj) < len(batch):
+                log(f"  e13 {system}: the driver ended after {len(inj)} of {len(batch)} failures")
 
 
 PLANS = {"t3": plan_t3, "t3s": plan_t3s,"smoke": plan_smoke, "e6": plan_e6, "e7": lambda root, a: plan_e6(root, a, "e7"), "e6cold": plan_e6cold, "e6mix": plan_e6mix, "e8": plan_e8, "e9": plan_e9, "e10": plan_e10,
