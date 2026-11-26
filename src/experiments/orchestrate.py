@@ -674,9 +674,9 @@ def _e13_trials(root: Path, a) -> None:
     (not before the end of the trial's measurement window -- as a run with one failure: the run's duration less the
     4-10 s of load before the cut, drawn the same way -- then once no instance has stalled and completions flow for
     quiet_s), and the next failure injected after gap_s, once the load runs normally again.  Each failure is written as its own trial
-    file (the instances of its window), so experiments.analyze reads them as before.  Other systems (Ray: a node
-    cut off past its health check is declared dead and its raylet and actors do not come back) start afresh for
-    every trial and take one failure each.  The settings: configs "e13", the environment HEDICES_E13_<KEY>."""
+    file (the instances of its window), so experiments.analyze reads them as before.  Other systems start afresh for
+    every trial and take one failure each: Ray declares a node cut off past its health check dead and its raylet and
+    actors do not come back; Dask removes a worker it lost, and the worker does not register again.  The settings: configs "e13", the environment HEDICES_E13_<KEY>."""
     rng = random.Random(13)
     e13 = CONFIG.get("e13") or {}
 

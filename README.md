@@ -62,7 +62,7 @@ bash queue.sh cancel 007              # remove a queued job, or stop your own ru
 ```
 
 Results go to `/opt/hedices/results/ae/<id>-<name>/` (`summary.txt`, `run.log`, plots in `<step>/report/`).
-Jobs run one after another; a full evaluation takes about 15 hours, so please queue early.
+Jobs run one after another; a full evaluation takes about 16 hours, so please queue early.
 
 ## Hardware and Software Requirements
 
@@ -83,8 +83,8 @@ Each command below is run in `/opt/hedices/AE-process`. Times are for one round 
 | `1-Ablation` | Fig 6, Fig 7 | 1.5 h |
 | `2-CacheDynamics` | Fig 8 | 5 min |
 | `3-NoRely` | Fig 9 | 1 h |
-| `4-EndToEnd` | Fig 10, Fig 11, Table 4, Fig 12, Fig 13 | 13 h |
-| `run_all.sh` | all of the above | 15 h (`ROUNDS=3`: 42 h) |
+| `4-EndToEnd` | Fig 10, Fig 11, Table 4, Fig 12, Fig 13 | 14 h |
+| `run_all.sh` | all of the above | 16 h (`ROUNDS=3`: 45 h) |
 
 ### Getting Started
 

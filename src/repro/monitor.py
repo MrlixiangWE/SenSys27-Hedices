@@ -36,7 +36,7 @@ def _fig13_trials():
         return 5
 
 
-MINUTES["fig13"] = 25 + 13 * _fig13_trials() // 2  # about 6.5 min per failure of all five systems, plus starting
+MINUTES["fig13"] = 25 + 7 * _fig13_trials()  # about 7 min per failure of all five systems, plus starting
 MINUTES["bexp"] = 105 + MINUTES["fig13"]
 HEXP = ["fig6", "fig7", "fig8", "fig9"]
 
@@ -72,7 +72,7 @@ def expected(step, rounds, trials=None):
         return sum(expected(s, rounds, trials) for s in ("sync", "hexp", "bexp", "summary"))
     m = dict(MINUTES)
     if trials:
-        m["fig13"] = 25 + 13 * int(trials) // 2
+        m["fig13"] = 25 + 7 * int(trials)
         m["bexp"] = 105 + m["fig13"]
     return m.get(step, 5) * (rounds if step in PER_ROUND else 1)
 

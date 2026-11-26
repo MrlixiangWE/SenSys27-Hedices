@@ -20,11 +20,11 @@ mkdir -p "$Q/pending" "$Q/running" "$Q/done" 2>/dev/null
 DEF_TRIALS=$("$PY" -c 'import json; print(json.load(open("experiments/configs/phys6r.json"))["e13"]["trials"])' 2>/dev/null || echo 5)
 trials_of() { local t; t=$(field "$1" FIG13_TRIALS); echo "${t:-$DEF_TRIALS}"; }
 
-# expected minutes per step (repro/monitor.py holds the same table); Fig 13 about 6.5 min per failure of all five
+# expected minutes per step (repro/monitor.py holds the same table); Fig 13 about 7 min per failure of all five
 # systems, plus starting them
 est() {  # est ROUNDS TRIALS STEP... -> minutes
   local r=$1 t=$2 m=0 s; shift 2
-  local f13=$((25 + 13 * t / 2))
+  local f13=$((25 + 7 * t))
   for s in "$@"; do case $s in
     sync|fig8|summary) m=$((m + 1)) ;; fig6) m=$((m + 20 * r)) ;; fig7) m=$((m + 60)) ;; fig9) m=$((m + 55)) ;;
     fig12) m=$((m + 50)) ;; fig13) m=$((m + f13)) ;; fig10) m=$((m + 60 * r)) ;; table3|table4) m=$((m + 85)) ;;
